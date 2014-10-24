@@ -1,0 +1,166 @@
+Storm Assignment
+=======================================  
+```{r setoptions, echo = FALSE,warning = FALSE}
+library(knitr)
+library(xtable)
+opts_chunk$set(warning = FALSE)
+windowsFonts(A=windowsFont("Trebuchet MS"))
+```
+```{r SetUpEnvironment, echo = FALSE, cache=TRUE}
+setwd("C:/Users/xgs/Desktop/Coursera_Data _Science/5-Reproducible Research/Week 3")
+#setwd("C:/Users/xgarcia/Documents/R")
+library(ggplot2)
+```
+####**Introduction**
+
+####**STEP 1: Loading and preprocessing the data**  
+In this step the raw data is loaded into a work dataframe. A previous look a the data has been done to determine exactly what columns are useful for our analysis and which ones can be removed to optimize the working memory.
+For the study I will consider only the next ones: *Event beginning date, State, Event type, Fatalities, Injuries, Property damage and exponential factor, Crop damage and exponential factor, Latitude and Longitude*
+These columns are renamed properly. For the Event begining date we need a type conversion.
+
+```{r LoadingTheData, echo=TRUE, cache=TRUE}
+FileName <- paste(getwd(),"/repdata-data-StormData.csv",sep="")
+#       Will load only the columns needed to do the job
+ValidColumns = c("NULL",NA,"NULL","NULL","NULL","NULL",NA,
+            NA,"NULL","NULL","NULL","NULL","NULL","NULL",
+            "NULL","NULL","NULL","NULL","NULL","NULL","NULL",
+            "NULL",NA,NA,NA,NA,NA,NA,
+            "NULL","NULL","NULL","NULL","NULL",NA,NA,
+            "NULL","NULL")
+
+Storms <- read.csv(FileName
+                , sep=",", header = TRUE
+                , stringsAsFactors = TRUE
+                , colClasses = ValidColumns
+                )
+names(Storms)
+
+##      Naming of the columns needed for the analyis
+names(Storms) <- c("BeginDate","State", "EventType","Fatalities","Injuries","PropertyDamage","PDUnits","CropDamage","CDUnits","Latitude","Longitude")
+```
+
+####**STEP 2: Cleaning and typing**  
+
+Once the data is in a working estructure, we need to do some cleaning tasks. These tasks are determined by inspection and basic checks.
+1. Convert to Date the BeginDate field
+2. Convert to uppercase and remove blanks from EventType field
+
+
+```{r CleaningAndTyping, echo=TRUE, cache=TRUE}
+##      Typing of data
+Storms$BeginDate <- as.Date(strptime(gsub(" 0:00:00","",Storms$BeginDate),"%m/%d/%Y"))
+
+##      Formatting the EventType field:
+##              Toupper case
+Storms$EventType <- toupper(Storms$EventType)
+##              Removing double spaces inside the names
+Storms$EventType <- gsub("  ","",Storms$EventType)
+Storms$EventType <- gsub("  ","",Storms$EventType)
+##              Removing leading and trailing spaces
+Storms$EventType <- sub("^\\s+", "", Storms$EventType)
+
+```
+
+####**STEP 3: Subset only for damaging events**  
+
+Our analysis is focused on those events that cause human damage (fatalities or injuries) and economic damage (property or crops), so those that happened but didn't bring any harm (or it wasn't recorded) are removed from the dataframe
+
+```{r SubsettingForAnalysis, echo=TRUE,cache=TRUE}
+##      Count of events according their damage
+UsefulRecords <- summary(as.factor(ifelse(Storms$Injuries + Storms$Fatalities 
+                + Storms$PropertyDamage + Storms$CropDamage > 0, "YES","NO")))
+
+##      Only those events that affect health and economy
+##      For our analyisis we only need those records with valid values
+##              for casualities, injuries, property or crop damages
+TotalRecords <- nrow(Storms)
+Storms <- subset(Storms, Injuries + Fatalities + PropertyDamage +  CropDamage > 0)
+Storms$Assigned <- FALSE
+
+##      How many different event types do we have
+DiffEvents <- unique(Storms$EventType)
+NumberEvents <- length(DiffEvents)
+
+```
+* **Useful records summary** (NO) `r UsefulRecords[1]` (YES) `r UsefulRecords[2]` (%) `r UsefulRecords[2] / (UsefulRecords[1] + UsefulRecords[2])`
+* **Number of Different Events:** `r NumberEvents`
+* **Sample of Events:** `r DiffEvents[1:10]`
+
+At this point due to the big amount of different events I'm going to group the most of them in categories. As said in the documentation, many records have been added manually so we can expect typos and different names for the same type. 
+Also the description and precision used to describe an event has increased over time, that means that a thunderstorm from the '50s can be recorded as many different variations of thunderstorms in the '90s.
+I may say that the categorization I'm going to define is probably not the one that fits best to real grouping of events, but descriptions are quite undefined and we don't have any digital source to cross the data.
+
+The method I followed to set up the grouping has been looping through inspection on the different names and how events were defined in the documentation, taking into account the number of records for each.
+Some effects of low temperatures as freezing, icy roads, hypothermia have been grouped in a "**COLD**" category, same for "**HEAT**".
+Events that cannot be put into any of the buckets (and contained less than 10 records) have been set to "**OTHERS**"
+
+
+```{r GroupingEvents, echo=TRUE,cache=TRUE}
+##      Grouping by categories identified by inspection / NOOA events database
+
+##      R function to assign categories by looking up a wildcard
+AssignCategory <- function(x,wild,cat){
+        x[grep(wild,x$EventType),]$Assigned <- TRUE
+        x[grep(wild,x$EventType),]$EventType <- cat
+        x
+}
+##      Categories assigned
+Storms <- AssignCategory(Storms,"FLOOD","FLOOD")
+Storms <- AssignCategory(Storms,"FLD","FLOOD")
+Storms <- AssignCategory(Storms,"FROST","COLD")
+Storms <- AssignCategory(Storms,"ICE","COLD")
+Storms <- AssignCategory(Storms,"FREEZE","COLD")                         
+Storms <- AssignCategory(Storms,"FREEZ","COLD")                         
+Storms <- AssignCategory(Storms,"COLD","COLD")
+Storms <- AssignCategory(Storms,"HYPOTHERMIA","COLD")
+Storms <- AssignCategory(Storms,"GLAZE","COLD")
+Storms <- AssignCategory(Storms,"ICY","COLD")
+Storms <- AssignCategory(Storms,"DROUGHT","HEAT")                          
+Storms <- AssignCategory(Storms,"HEAT","HEAT") 
+Storms <- AssignCategory(Storms,"HYPERTHERMIA","HEAT")
+Storms <- AssignCategory(Storms,"FIRE","FIRE")                          
+Storms <- AssignCategory(Storms,"TORNADO","TORNADO") 
+Storms <- AssignCategory(Storms,"WATERSPOUT","TORNADO") 
+Storms <- AssignCategory(Storms,"FUNNEL CLOUD","TORNADO") 
+Storms <- AssignCategory(Storms,"TIDE","TIDE")                          
+Storms <- AssignCategory(Storms,"SNOW","SNOW") 
+Storms <- AssignCategory(Storms,"THUNDERSTORM","STORM")                          
+Storms <- AssignCategory(Storms,"MICROBURST","STORM")                          
+Storms <- AssignCategory(Storms,"STORM","STORM") 
+Storms <- AssignCategory(Storms,"BLIZZARD","STROM")                          
+Storms <- AssignCategory(Storms,"HURRICANE","HURRICANE") 
+Storms <- AssignCategory(Storms,"TYPHOON","HURRICANE")                          
+Storms <- AssignCategory(Storms,"TROPICAL","HURRICANE") 
+Storms <- AssignCategory(Storms,"WIND","WIND")                         
+Storms <- AssignCategory(Storms,"RIP","RIP") 
+Storms <- AssignCategory(Storms,"LIGHTNING","LIGHTNING")                          
+Storms <- AssignCategory(Storms,"HAIL","HAIL") 
+Storms <- AssignCategory(Storms,"RAIN","RAIN")                          
+Storms <- AssignCategory(Storms,"PRECIPITATION","RAIN") 
+Storms <- AssignCategory(Storms,"WINTER","WINTER")                          
+Storms <- AssignCategory(Storms,"FOG","FOG") 
+Storms <- AssignCategory(Storms,"SURF","SURF")       
+Storms <- AssignCategory(Storms,"SLIDE","SLIDE")       
+Storms <- AssignCategory(Storms,"AVALANC","AVALANCHE")       
+Storms <- AssignCategory(Storms,"DUST","DUST DEVIL")       
+
+##      Assigns the rest of categories to "OTHERS"
+Storms[Storms$Assigned == FALSE,]$EventType <- "OTHERS"
+
+##              Setting the names as factors
+Storms$EventType <- as.factor(Storms$EventType)
+Storms$Assigned <- as.factor(Storms$Assigned)
+
+EventBuckets <- xtable(as.table(sort(summary(as.factor(Storms$EventType)),decreasing=TRUE)))
+```
+* **Final categories in the working dataframe**
+
+```{r EventBuckets, results='asis'}
+print(EventBuckets,type="html")
+```
+
+
+
+
+
+
