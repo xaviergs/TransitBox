@@ -7,8 +7,8 @@ opts_chunk$set(warning = FALSE)
 windowsFonts(A=windowsFont("Trebuchet MS"))
 ```
 ```{r SetUpEnvironment, echo = FALSE, cache=TRUE}
-setwd("C:/Users/xgs/Desktop/Coursera_Data _Science/5-Reproducible Research/Week 3")
-#setwd("C:/Users/xgarcia/Documents/R")
+##setwd("C:/Users/xgs/Desktop/Coursera_Data _Science/5-Reproducible Research/Week 3")
+setwd("C:/Users/xgarcia/Documents/R")
 library(ggplot2)
 ```
 ####**Introduction**
@@ -150,8 +150,11 @@ Storms[Storms$Assigned == FALSE,]$EventType <- "OTHERS"
 ##              Setting the names as factors
 Storms$EventType <- as.factor(Storms$EventType)
 Storms$Assigned <- as.factor(Storms$Assigned)
-
-EventBuckets <- xtable(as.table(sort(summary(as.factor(Storms$EventType)),decreasing=TRUE)))
+```
+```{r PrintBuckets, echo=TRUE}
+EventBuckets <- data.frame(sort(summary(as.factor(Storms$EventType)),decreasing=TRUE))
+names(EventBuckets) <- c("Number of Events")
+EventBuckets <- xtable(EventBuckets)
 ```
 * **Final categories in the working dataframe**
 
@@ -159,8 +162,33 @@ EventBuckets <- xtable(as.table(sort(summary(as.factor(Storms$EventType)),decrea
 print(EventBuckets,type="html")
 ```
 
+```{r BoxPlotByEventTypePeople}
+gObj <- ggplot(subset(Storms, Fatalities + Injuries > 0)
+               , aes(reorder(EventType, -(Fatalities + Injuries), FUN = sum)
+                     , log10(Fatalities + Injuries)))
+gObj <- gObj + theme_bw(base_family = "A", base_size = 14)
+gObj <- gObj + geom_jitter(aes(color = EventType), alpha = 0.4, size = 0.2)
+gObj <- gObj + geom_boxplot(aes(fill = EventType)
+                            , outlier.size = 2
+                            , outlier.shape = 21
+                            , outlier.color = "black"
+                            , family = "A")
+gObj <- gObj + ggtitle("Distribution of events causing personal damage")
 
+print(gObj)
+```
 
+```{r BoxPlotByEventTypePeople}
+gObj <- ggplot(subset(Storms, PropertyDamage + CropDamage > 0)
+               , aes(EventType, (PropertyDamage * 10 ^ as.numeric(PDUnits) + CropDamage * 10 ^ as.numeric(CDUnits)))
+gObj <- gObj + theme_bw(base_family = "A", base_size = 14)
+gObj <- gObj + geom_jitter(aes(color = EventType), alpha = 0.4, size = 0.2)
+gObj <- gObj + geom_boxplot(aes(fill = EventType)
+                            , outlier.size = 2
+                            , outlier.shape = 21
+                            , outlier.color = "black"
+                            , family = "A")
+gObj <- gObj + ggtitle("Distribution of events causing properties damage")
 
-
-
+print(gObj)
+```
